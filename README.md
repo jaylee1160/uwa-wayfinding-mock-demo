@@ -1,6 +1,6 @@
-# Stakeholder Demo – Map Marker Mockup
+# Stakeholder Demo – Google Maps Floor Plan 
 
-This repository contains a lightweight HTML + SQL + Python prototype created for a stakeholder meeting (March 2025) to demonstrate interactive marker functionality for indoor/outdoor wayfinding.
+This HTML file demonstrates an interactive multi-floor map of UWA CSSE building. 
 
 ## Included Files
 
@@ -16,3 +16,12 @@ Used in a live meeting to demonstrate feasibility of showing room or building ma
 
 Not production-ready — just a concept demo. Feedback was received and incorporated into the main planning doc and Deliverable 1 report.
 
+### Key Features
+
+- Google Maps API rendering with custom marker and bounding box
+- Clickable rooms with room type, floor level, and ID
+- Search functionality with result-based navigation
+- Dynamic multi-floor rendering (Ground, 1st, 2nd)
+
+🗂️ File: `index.html`  
+🔑 API key is embedded for demonstration purposes. For production, use secure environment variables.

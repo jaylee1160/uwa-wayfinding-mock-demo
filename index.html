@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UWA CSSE Building Wayfinding</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        #map {
+            height: 80vh;
+            width: 100%;
+        }
+        .search-box {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            z-index: 1000;
+        }
+        .search-box input {
+            padding: 5px;
+            margin-right: 5px;
+        }
+        .search-box button {
+            padding: 5px 10px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .search-box button:hover {
+            background: #45a049;
+        }
+        .floor-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: none;
+        }
+        .floor-controls button {
+            display: block;
+            margin: 5px 0;
+            padding: 8px 15px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .floor-controls button:hover {
+            background: #45a049;
+        }
+        .room-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            z-index: 1000;
+            max-width: 300px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Search rooms...">
+        <button onclick="searchRooms()">Search</button>
+    </div>
+    <div class="floor-controls" id="floorControls">
+        <h3>Select Floor:</h3>
+        <button onclick="showFloor('G')">Ground Floor</button>
+        <button onclick="showFloor('1')">First Floor</button>
+        <button onclick="showFloor('2')">Second Floor</button>
+    </div>
+    <div id="roomInfo" class="room-info"></div>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBxhpkOGrjXLlVhDezp63TYznP231sYeb4&callback=initMap&libraries=&v=weekly" defer></script>
+
+    <script>
+        let map;
+        let currentFloor = 'G';
+        let roomOverlays = [];
+
+        const buildingBounds = {
+            north: -31.977499,
+            south: -31.977771,
+            east: 115.816500,
+            west: 115.815900
+        };
+
+        const buildingData = {
+            'G': {
+                rooms: [
+                    { id: 'G01', name: 'Main Entry', type: 'entrance', x: 20, y: 20, width: 60, height: 40 },
+                    { id: 'G02', name: 'CSSE Reception', type: 'service', x: 90, y: 20, width: 60, height: 40 },
+                    { id: 'G03', name: 'Student Hub', type: 'common', x: 160, y: 20, width: 80, height: 60 },
+                    { id: 'G04', name: 'Computer Lab 1.24', type: 'lab', x: 20, y: 90, width: 70, height: 50 },
+                    { id: 'G05', name: 'Computer Lab 1.25', type: 'lab', x: 100, y: 90, width: 70, height: 50 }
+                ]
+            },
+            '1': {
+                rooms: [
+                    { id: '101', name: 'Computer Lab 2.24', type: 'lab', x: 20, y: 20, width: 70, height: 50 },
+                    { id: '102', name: 'Group Study Room', type: 'study', x: 100, y: 90, width: 80, height: 60 }
+                ]
+            },
+            '2': {
+                rooms: [
+                    { id: '201', name: 'Research Lab', type: 'research', x: 20, y: 20, width: 70, height: 50 }
+                ]
+            }
+        };
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById("map"), {
+                center: { lat: -31.9775, lng: 115.8162 },
+                zoom: 18,
+                mapTypeControl: true,
+                zoomControl: true,
+                scaleControl: true,
+                streetViewControl: true,
+                rotateControl: true,
+                fullscreenControl: true
+            });
+
+            // Add building footprint
+            new google.maps.Rectangle({
+                bounds: buildingBounds,
+                strokeColor: '#FF0000',
+                strokeOpacity: 0.8,
+                strokeWeight: 2,
+                fillColor: '#FF0000',
+                fillOpacity: 0.1,
+                map: map
+            });
+
+            // Add building marker
+            const buildingMarker = new google.maps.Marker({
+                position: { lat: -31.9775, lng: 115.8162 },
+                map: map,
+                title: "CSSE Building - Click to view floor plans",
+                animation: google.maps.Animation.BOUNCE,
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 15,
+                    fillColor: "#FF0000",
+                    fillOpacity: 1,
+                    strokeColor: "#FFFFFF",
+                    strokeWeight: 3
+                }
+            });
+
+            // Add click handler to building marker
+            buildingMarker.addListener('click', function() {
+                // Show floor controls and room info
+                document.getElementById('floorControls').style.display = 'block';
+                document.getElementById('roomInfo').style.display = 'block';
+                document.getElementById('roomInfo').innerHTML = '<h3>Select a floor to view the floor plan</h3>';
+                
+                // Stop marker animation
+                buildingMarker.setAnimation(null);
+                
+                // Center map on building
+                map.setCenter(buildingMarker.getPosition());
+                map.setZoom(18);
+            });
+
+            // Add click listener to map to hide controls when clicking outside
+            map.addListener('click', function(e) {
+                if (!e.placeId) {  // Only hide if not clicking on a marker
+                    document.getElementById('floorControls').style.display = 'none';
+                    document.getElementById('roomInfo').style.display = 'none';
+                }
+            });
+
+            showFloor(currentFloor); // Initially display the ground floor
+        }
+
+        function drawRooms(floor) {
+            const rooms = buildingData[floor].rooms;
+            const projection = map.getProjection();
+            
+            // Get building bounds in pixels
+            const sw = projection.fromLatLngToPoint(new google.maps.LatLng(buildingBounds.south, buildingBounds.west));
+            const ne = projection.fromLatLngToPoint(new google.maps.LatLng(buildingBounds.north, buildingBounds.east));
+            
+            // Calculate building dimensions in pixels
+            const buildingWidth = ne.x - sw.x;
+            const buildingHeight = ne.y - sw.y;
+            
+            // Calculate scaling factors based on building dimensions
+            const scaleX = buildingWidth / 340;  // 340 is the max width in our coordinate system
+            const scaleY = buildingHeight / 150;  // 150 is the max height in our coordinate system
+
+            rooms.forEach(room => {
+                // Calculate room position and size in pixels
+                const x = sw.x + (room.x * scaleX);
+                const y = sw.y + (room.y * scaleY);
+                const width = room.width * scaleX;
+                const height = room.height * scaleY;
+
+                // Convert pixel coordinates back to LatLng
+                const northEast = projection.fromPointToLatLng(new google.maps.Point(x + width, y));
+                const southWest = projection.fromPointToLatLng(new google.maps.Point(x, y + height));
+
+                // Create room overlay
+                const roomOverlay = new google.maps.Rectangle({
+                    bounds: {
+                        north: northEast.lat(),
+                        south: southWest.lat(),
+                        east: northEast.lng(),
+                        west: southWest.lng()
+                    },
+                    strokeColor: '#2E7D32',
+                    strokeOpacity: 0.8,
+                    strokeWeight: 2,
+                    fillColor: '#4CAF50',
+                    fillOpacity: 0.4,
+                    map: map
+                });
+
+                // Add room label
+                const label = new google.maps.Marker({
+                    position: projection.fromPointToLatLng(new google.maps.Point(x + width/2, y + height/2)),
+                    map: map,
+                    label: {
+                        text: room.id,
+                        color: '#FFFFFF',
+                        fontSize: '12px',
+                        fontWeight: 'bold'
+                    },
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 0
+                    }
+                });
+
+                // Add click handlers
+                roomOverlay.addListener('click', function() {
+                    showRoomInfo(room);
+                    highlightRoom(roomOverlay);
+                });
+
+                roomOverlays.push(roomOverlay);
+                roomOverlays.push(label);
+            });
+        }
+
+        function highlightRoom(roomOverlay) {
+            // Reset all rooms to default style
+            roomOverlays.forEach(overlay => {
+                if (overlay instanceof google.maps.Rectangle) {
+                    overlay.setOptions({
+                        fillColor: '#4CAF50',
+                        fillOpacity: 0.4
+                    });
+                }
+            });
+
+            // Highlight selected room
+            roomOverlay.setOptions({
+                fillColor: '#FFD700',
+                fillOpacity: 0.6
+            });
+        }
+
+        function showFloor(floor) {
+            currentFloor = floor;
+            clearRoomOverlays();
+            
+            // Show floor controls and room info
+            document.getElementById('floorControls').style.display = 'block';
+            document.getElementById('roomInfo').style.display = 'block';
+            
+            // Update room list
+            document.getElementById('roomInfo').innerHTML = `
+                <h3>Floor ${floor} Rooms:</h3>
+                <ul>
+                    ${buildingData[floor].rooms.map(room => 
+                        `<li onclick="showRoomInfo(${JSON.stringify(room)})">${room.id}: ${room.name} (${room.type})</li>`
+                    ).join('')}
+                </ul>
+            `;
+            
+            // Center map on building
+            map.setCenter({ lat: -31.9775, lng: 115.8162 });
+            map.setZoom(18);
+            
+            drawRooms(floor);
+        }
+
+        function clearRoomOverlays() {
+            roomOverlays.forEach(overlay => overlay.setMap(null));
+            roomOverlays = [];
+        }
+
+        function showRoomInfo(room) {
+            const roomInfoDiv = document.getElementById('roomInfo');
+            roomInfoDiv.innerHTML = `
+                <h3>Room Details:</h3>
+                <p><strong>ID:</strong> ${room.id}</p>
+                <p><strong>Name:</strong> ${room.name}</p>
+                <p><strong>Type:</strong> ${room.type}</p>
+                <p><strong>Floor:</strong> ${currentFloor}</p>
+            `;
+        }
+
+        function searchRooms() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const results = [];
+
+            Object.keys(buildingData).forEach(floor => {
+                buildingData[floor].rooms.forEach(room => {
+                    if (room.name.toLowerCase().includes(searchTerm) || room.id.toLowerCase().includes(searchTerm)) {
+                        results.push({ ...room, floor });
+                    }
+                });
+            });
+
+            if (results.length > 0) {
+                const roomInfo = document.getElementById('roomInfo');
+                roomInfo.innerHTML = `
+                    <h3>Search Results:</h3>
+                    <ul>
+                        ${results.map(room => 
+                            `<li onclick="showFloor('${room.floor}'); showRoomInfo(${JSON.stringify(room)})">
+                                ${room.id}: ${room.name} (${room.type}) - Floor ${room.floor}
+                            </li>`
+                        ).join('')}
+                    </ul>
+                `;
+                roomInfo.style.display = 'block';
+            } else {
+                document.getElementById('roomInfo').innerHTML = '<p>No rooms found matching your search.</p>';
+            }
+        }
+    </script>
+</body>
+</html>
